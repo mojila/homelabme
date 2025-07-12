@@ -3,3 +3,5 @@
 
 pub mod use_cases;
 pub mod dto;
+pub mod network_dto;
+pub mod network_use_cases;
