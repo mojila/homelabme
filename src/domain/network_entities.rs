@@ -53,6 +53,15 @@ pub enum InterfaceType {
     Other,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScannedWifiNetwork {
+    pub ssid: String,
+    pub mac: String,
+    pub signal_level: String,
+    pub channel: String,
+    pub security: String,
+}
+
 impl WifiConfig {
     pub fn new(ssid: String, password: String, security_type: WifiSecurityType) -> Self {
         Self {

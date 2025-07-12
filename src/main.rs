@@ -47,6 +47,7 @@ async fn main() {
     let enable_static_ip_config_use_case = Arc::new(EnableStaticIpConfigUseCaseImpl::new(network_config_service.clone()));
     let disable_static_ip_config_use_case = Arc::new(DisableStaticIpConfigUseCaseImpl::new(network_config_service.clone()));
     let delete_static_ip_config_use_case = Arc::new(DeleteStaticIpConfigUseCaseImpl::new(network_config_service.clone()));
+    let scan_wifi_networks_use_case = Arc::new(ScanWifiNetworksUseCaseImpl::new(network_config_service.clone()));
     
     // Application state
     let app_state = AppState {
@@ -61,6 +62,7 @@ async fn main() {
         enable_static_ip_config_use_case,
         disable_static_ip_config_use_case,
         delete_static_ip_config_use_case,
+        scan_wifi_networks_use_case,
     };
     
     // Presentation layer - web routes

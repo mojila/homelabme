@@ -34,6 +34,15 @@ pub struct NetworkInterfaceDto {
     pub current_ip: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ScannedWifiNetworkDto {
+    pub ssid: String,
+    pub mac: String,
+    pub signal_level: String,
+    pub channel: String,
+    pub security: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateWifiConfigRequest {
     pub ssid: String,
@@ -161,6 +170,30 @@ impl From<&NetworkInterface> for NetworkInterfaceDto {
             mac_address: interface.mac_address.clone(),
             is_up: interface.is_up,
             current_ip: interface.current_ip.clone(),
+        }
+    }
+}
+
+impl From<ScannedWifiNetwork> for ScannedWifiNetworkDto {
+    fn from(network: ScannedWifiNetwork) -> Self {
+        Self {
+            ssid: network.ssid,
+            mac: network.mac,
+            signal_level: network.signal_level,
+            channel: network.channel,
+            security: network.security,
+        }
+    }
+}
+
+impl From<&ScannedWifiNetwork> for ScannedWifiNetworkDto {
+    fn from(network: &ScannedWifiNetwork) -> Self {
+        Self {
+            ssid: network.ssid.clone(),
+            mac: network.mac.clone(),
+            signal_level: network.signal_level.clone(),
+            channel: network.channel.clone(),
+            security: network.security.clone(),
         }
     }
 }

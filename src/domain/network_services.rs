@@ -29,6 +29,7 @@ pub trait NetworkConfigService: Send + Sync {
     async fn delete_static_ip_config(&self, id: &str) -> Result<(), String>;
     
     async fn get_network_interfaces(&self) -> Result<Vec<NetworkInterface>, String>;
+    async fn scan_wifi_networks(&self) -> Result<Vec<ScannedWifiNetwork>, String>;
     async fn apply_wifi_config(&self, config: &WifiConfig) -> Result<(), String>;
     async fn apply_static_ip_config(&self, config: &StaticIpConfig) -> Result<(), String>;
 }
@@ -120,6 +121,29 @@ impl NetworkConfigService for NetworkConfigServiceImpl {
 
     async fn get_network_interfaces(&self) -> Result<Vec<NetworkInterface>, String> {
         self.interface_repository.get_interfaces().await
+    }
+
+    async fn scan_wifi_networks(&self) -> Result<Vec<ScannedWifiNetwork>, String> {
+        tokio::task::spawn_blocking(|| {
+            match wifiscanner::scan() {
+                Ok(networks) => {
+                    let scanned_networks: Vec<ScannedWifiNetwork> = networks
+                        .into_iter()
+                        .map(|network| ScannedWifiNetwork {
+                            ssid: network.ssid,
+                            mac: network.mac,
+                            signal_level: network.signal_level,
+                            channel: network.channel,
+                            security: network.security,
+                        })
+                        .collect();
+                    Ok(scanned_networks)
+                }
+                Err(e) => Err(format!("WiFi scan failed: {:?}", e)),
+            }
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
     }
 
     async fn apply_wifi_config(&self, config: &WifiConfig) -> Result<(), String> {

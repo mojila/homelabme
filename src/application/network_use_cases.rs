@@ -45,6 +45,11 @@ pub trait DeleteStaticIpConfigUseCase: Send + Sync {
     async fn execute(&self, config_id: String) -> Result<(), String>;
 }
 
+#[async_trait]
+pub trait ScanWifiNetworksUseCase: Send + Sync {
+    async fn execute(&self) -> Result<Vec<ScannedWifiNetworkDto>, String>;
+}
+
 // Implementations
 pub struct GetNetworkSettingsUseCaseImpl {
     network_service: Arc<dyn NetworkConfigService>,
@@ -215,5 +220,23 @@ impl DeleteStaticIpConfigUseCaseImpl {
 impl DeleteStaticIpConfigUseCase for DeleteStaticIpConfigUseCaseImpl {
     async fn execute(&self, config_id: String) -> Result<(), String> {
         self.network_service.delete_static_ip_config(&config_id).await
+    }
+}
+
+pub struct ScanWifiNetworksUseCaseImpl {
+    network_service: Arc<dyn NetworkConfigService>,
+}
+
+impl ScanWifiNetworksUseCaseImpl {
+    pub fn new(network_service: Arc<dyn NetworkConfigService>) -> Self {
+        Self { network_service }
+    }
+}
+
+#[async_trait]
+impl ScanWifiNetworksUseCase for ScanWifiNetworksUseCaseImpl {
+    async fn execute(&self) -> Result<Vec<ScannedWifiNetworkDto>, String> {
+        let networks = self.network_service.scan_wifi_networks().await?;
+        Ok(networks.into_iter().map(|n| n.into()).collect())
     }
 }

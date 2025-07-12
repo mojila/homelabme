@@ -28,6 +28,7 @@ pub struct AppState {
     pub enable_static_ip_config_use_case: Arc<dyn EnableStaticIpConfigUseCase>,
     pub disable_static_ip_config_use_case: Arc<dyn DisableStaticIpConfigUseCase>,
     pub delete_static_ip_config_use_case: Arc<dyn DeleteStaticIpConfigUseCase>,
+    pub scan_wifi_networks_use_case: Arc<dyn ScanWifiNetworksUseCase>,
 }
 
 // Create the router with all routes
@@ -40,6 +41,7 @@ pub fn create_router(state: AppState) -> Router {
         // Network API handlers
         .route("/api/network/settings", get(get_network_settings_api_handler))
         .route("/api/network/wifi", post(create_wifi_config_handler))
+        .route("/api/network/wifi/scan", get(scan_wifi_networks_handler))
         .route("/api/network/wifi/:id/activate", post(activate_wifi_config_handler))
         .route("/api/network/wifi/:id", delete(delete_wifi_config_handler))
         .route("/api/network/static-ip", post(create_static_ip_config_handler))
@@ -136,8 +138,21 @@ async fn network_settings_handler(State(state): State<AppState>) -> Result<Html<
                                 <form id="wifi-form" class="space-y-4">
                                     <div>
                                         <label for="wifi-ssid" class="block text-sm font-medium text-white/90 mb-2">Network Name (SSID)</label>
-                                        <input type="text" id="wifi-ssid" name="ssid" required
-                                               class="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-md text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent">
+                                        <div class="flex space-x-2">
+                                            <select id="wifi-ssid" name="ssid" required
+                                                    class="flex-1 px-3 py-2 bg-white/20 border border-white/30 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent">
+                                                <option value="">Select a network...</option>
+                                                <!-- Options will be populated by WiFi scan -->
+                                            </select>
+                                            <button type="button" onclick="scanWifiNetworks()" 
+                                                    class="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-white rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400/50">
+                                                🔍 Scan
+                                            </button>
+                                        </div>
+                                        <div class="mt-2">
+                                            <input type="text" id="wifi-ssid-custom" placeholder="Or enter custom SSID..."
+                                                   class="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-md text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent">
+                                        </div>
                                     </div>
                                     <div>
                                         <label for="wifi-password" class="block text-sm font-medium text-white/90 mb-2">Password</label>
@@ -400,36 +415,7 @@ async fn network_settings_handler(State(state): State<AppState>) -> Result<Html<
                             }});
                         }}
 
-                        // WiFi form submission
-                        document.getElementById('wifi-form').addEventListener('submit', async (e) => {{
-                            e.preventDefault();
-                            const formData = new FormData(e.target);
-                            const data = {{
-                                ssid: formData.get('ssid'),
-                                password: formData.get('password'),
-                                security_type: formData.get('security_type')
-                            }};
-                            
-                            try {{
-                                const response = await fetch('/api/network/wifi', {{
-                                    method: 'POST',
-                                    headers: {{
-                                        'Content-Type': 'application/json'
-                                    }},
-                                    body: JSON.stringify(data)
-                                }});
-                                
-                                if (response.ok) {{
-                                    showToast('WiFi configuration added successfully!');
-                                    e.target.reset();
-                                    setTimeout(() => location.reload(), 1000);
-                                }} else {{
-                                    showToast('Failed to add WiFi configuration', 'error');
-                                }}
-                            }} catch (error) {{
-                                showToast('Error adding WiFi configuration', 'error');
-                            }}
-                        }});
+
 
                         // Static IP form submission
                         document.getElementById('static-ip-form').addEventListener('submit', async (e) => {{
@@ -556,6 +542,128 @@ async fn network_settings_handler(State(state): State<AppState>) -> Result<Html<
                             }}
                         }}
 
+                        // WiFi scanning functions
+                        async function scanWifiNetworks() {{
+                            const scanButton = document.querySelector('button[onclick="scanWifiNetworks()"]');
+                            const originalText = scanButton.innerHTML;
+                            
+                            try {{
+                                scanButton.innerHTML = '🔄 Scanning...';
+                                scanButton.disabled = true;
+                                
+                                const response = await fetch('/api/network/wifi/scan');
+                                
+                                if (response.ok) {{
+                                    const networks = await response.json();
+                                    populateWifiNetworks(networks);
+                                    showToast(`Found ${{networks.length}} WiFi networks`);
+                                }} else {{
+                                    showToast('Failed to scan WiFi networks', 'error');
+                                }}
+                            }} catch (error) {{
+                                showToast('Error scanning WiFi networks', 'error');
+                            }} finally {{
+                                scanButton.innerHTML = originalText;
+                                scanButton.disabled = false;
+                            }}
+                        }}
+
+                        function populateWifiNetworks(networks) {{
+                            const ssidSelect = document.getElementById('wifi-ssid');
+                            
+                            // Clear existing options except the first one
+                            ssidSelect.innerHTML = '<option value="">Select a network...</option>';
+                            
+                            // Sort networks by signal strength (descending)
+                            networks.sort((a, b) => b.signal_level - a.signal_level);
+                            
+                            networks.forEach(network => {{
+                                const option = document.createElement('option');
+                                option.value = network.ssid;
+                                option.textContent = `${{network.ssid}} (${{network.security}}, ${{network.signal_level}}dBm)`;
+                                ssidSelect.appendChild(option);
+                            }});
+                        }}
+
+                        // Handle SSID selection (dropdown vs custom input)
+                        function handleSsidSelection() {{
+                            const ssidSelect = document.getElementById('wifi-ssid');
+                            const customInput = document.getElementById('wifi-ssid-custom');
+                            
+                            if (ssidSelect.value) {{
+                                customInput.value = '';
+                                customInput.removeAttribute('required');
+                                ssidSelect.setAttribute('required', 'required');
+                            }} else {{
+                                ssidSelect.removeAttribute('required');
+                                customInput.setAttribute('required', 'required');
+                            }}
+                        }}
+
+                        // Add event listeners for SSID selection
+                        document.addEventListener('DOMContentLoaded', function() {{
+                            const ssidSelect = document.getElementById('wifi-ssid');
+                            const customInput = document.getElementById('wifi-ssid-custom');
+                            
+                            ssidSelect.addEventListener('change', handleSsidSelection);
+                            customInput.addEventListener('input', function() {{
+                                if (this.value) {{
+                                    ssidSelect.value = '';
+                                    ssidSelect.removeAttribute('required');
+                                    this.setAttribute('required', 'required');
+                                }} else {{
+                                    this.removeAttribute('required');
+                                    ssidSelect.setAttribute('required', 'required');
+                                }}
+                            }});
+                            
+                            // Modify WiFi form submission
+                            document.getElementById('wifi-form').addEventListener('submit', async function(e) {{
+                                e.preventDefault();
+                                
+                                const formData = new FormData(this);
+                                const ssidSelect = document.getElementById('wifi-ssid');
+                                const customInput = document.getElementById('wifi-ssid-custom');
+                                
+                                // Use custom SSID if provided, otherwise use selected SSID
+                                const ssid = customInput.value || ssidSelect.value;
+                                
+                                if (!ssid) {{
+                                    showToast('Please select a network or enter a custom SSID', 'error');
+                                    return;
+                                }}
+                                
+                                const wifiConfig = {{
+                                    ssid: ssid,
+                                    password: formData.get('password'),
+                                    security_type: formData.get('security_type')
+                                }};
+                                
+                                try {{
+                                    const response = await fetch('/api/network/wifi', {{
+                                        method: 'POST',
+                                        headers: {{
+                                            'Content-Type': 'application/json'
+                                        }},
+                                        body: JSON.stringify(wifiConfig)
+                                    }});
+                                    
+                                    if (response.ok) {{
+                                        showToast('WiFi configuration added successfully!');
+                                        this.reset();
+                                        ssidSelect.value = '';
+                                        customInput.value = '';
+                                        handleSsidSelection();
+                                        setTimeout(() => location.reload(), 1000);
+                                    }} else {{
+                                        showToast('Failed to add WiFi configuration', 'error');
+                                    }}
+                                }} catch (error) {{
+                                    showToast('Error adding WiFi configuration', 'error');
+                                }}
+                            }});
+                        }});
+
                         // Initialize page with default filter (UP interfaces only)
                         filteredInterfaces = allInterfaces.filter(iface => iface.is_up);
                         populateInterfaces();
@@ -679,6 +787,15 @@ async fn delete_static_ip_config_handler(
 ) -> Result<StatusCode, StatusCode> {
     match state.delete_static_ip_config_use_case.execute(id).await {
         Ok(_) => Ok(StatusCode::OK),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn scan_wifi_networks_handler(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<ScannedWifiNetworkDto>>, StatusCode> {
+    match state.scan_wifi_networks_use_case.execute().await {
+        Ok(networks) => Ok(Json(networks)),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
