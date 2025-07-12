@@ -23,7 +23,7 @@ async fn main() {
     let greeting_repository = Arc::new(InMemoryGreetingRepository::new());
     let wifi_config_repository = Arc::new(InMemoryWifiConfigRepository::new());
     let static_ip_config_repository = Arc::new(InMemoryStaticIpConfigRepository::new());
-    let network_interface_repository = Arc::new(MockNetworkInterfaceRepository::new());
+    let network_interface_repository = Arc::new(SystemNetworkInterfaceRepository::new());
     
     // Domain layer
     let greeting_service = Arc::new(GreetingServiceImpl::new(greeting_repository));

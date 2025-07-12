@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use network_interface::{NetworkInterface as SystemNetworkInterface, NetworkInterfaceConfig, Addr};
 use crate::domain::network_entities::*;
 use crate::domain::network_repositories::*;
 
@@ -142,48 +143,111 @@ impl StaticIpConfigRepository for InMemoryStaticIpConfigRepository {
     }
 }
 
-// Mock network interface repository
-pub struct MockNetworkInterfaceRepository;
+// Real network interface repository using system interfaces
+pub struct SystemNetworkInterfaceRepository;
 
-impl MockNetworkInterfaceRepository {
+impl SystemNetworkInterfaceRepository {
     pub fn new() -> Self {
         Self
     }
+
+    fn determine_interface_type(name: &str) -> InterfaceType {
+        if name.starts_with("lo") {
+            InterfaceType::Loopback
+        } else if name.starts_with("wl") || name.starts_with("wifi") || name.starts_with("wlan") {
+            InterfaceType::Wireless
+        } else if name.starts_with("eth") || name.starts_with("en") {
+            InterfaceType::Ethernet
+        } else {
+            InterfaceType::Other
+        }
+    }
+
+    fn convert_system_interface(sys_interface: &SystemNetworkInterface) -> NetworkInterface {
+        let mut ipv4_addresses = Vec::new();
+        let mut ipv6_addresses = Vec::new();
+
+        for addr in &sys_interface.addr {
+            match addr {
+                Addr::V4(v4_addr) => ipv4_addresses.push(v4_addr.ip.to_string()),
+                Addr::V6(v6_addr) => ipv6_addresses.push(v6_addr.ip.to_string()),
+            }
+        }
+
+        // Keep current_ip for backward compatibility (first available address)
+        let current_ip = sys_interface.addr.first().map(|addr| {
+            match addr {
+                Addr::V4(v4_addr) => v4_addr.ip.to_string(),
+                Addr::V6(v6_addr) => v6_addr.ip.to_string(),
+            }
+        });
+
+        NetworkInterface {
+            name: sys_interface.name.clone(),
+            interface_type: Self::determine_interface_type(&sys_interface.name),
+            mac_address: "N/A".to_string(), // network-interface crate doesn't provide MAC address directly
+            is_up: !ipv4_addresses.is_empty() || !ipv6_addresses.is_empty(),
+            ipv4_addresses,
+            ipv6_addresses,
+            current_ip,
+        }
+    }
 }
 
-impl Default for MockNetworkInterfaceRepository {
+impl Default for SystemNetworkInterfaceRepository {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[async_trait]
-impl NetworkInterfaceRepository for MockNetworkInterfaceRepository {
+impl NetworkInterfaceRepository for SystemNetworkInterfaceRepository {
     async fn get_interfaces(&self) -> Result<Vec<NetworkInterface>, String> {
-        // Mock data for demonstration
-        Ok(vec![
-            NetworkInterface {
-                name: "eth0".to_string(),
-                interface_type: InterfaceType::Ethernet,
-                mac_address: "00:1B:44:11:3A:B7".to_string(),
-                is_up: true,
-                current_ip: Some("192.168.1.100".to_string()),
-            },
-            NetworkInterface {
-                name: "wlan0".to_string(),
-                interface_type: InterfaceType::Wireless,
-                mac_address: "00:1B:44:11:3A:B8".to_string(),
-                is_up: true,
-                current_ip: Some("192.168.1.101".to_string()),
-            },
-            NetworkInterface {
-                name: "lo".to_string(),
-                interface_type: InterfaceType::Loopback,
-                mac_address: "00:00:00:00:00:00".to_string(),
-                is_up: true,
-                current_ip: Some("127.0.0.1".to_string()),
-            },
-        ])
+        let system_interfaces = SystemNetworkInterface::show()
+            .map_err(|e| format!("Failed to get network interfaces: {}", e))?;
+
+        let mut interface_map = std::collections::HashMap::new();
+
+        // Group addresses by interface name
+        for sys_interface in system_interfaces {
+            let entry = interface_map.entry(sys_interface.name.clone()).or_insert_with(|| {
+                (Self::determine_interface_type(&sys_interface.name), Vec::new())
+            });
+            entry.1.extend(sys_interface.addr);
+        }
+
+        // Convert grouped interfaces to NetworkInterface structs
+        let mut interfaces = Vec::new();
+        for (name, (interface_type, addresses)) in interface_map {
+            let mut ipv4_addresses = Vec::new();
+            let mut ipv6_addresses = Vec::new();
+
+            for addr in &addresses {
+                match addr {
+                    Addr::V4(v4_addr) => ipv4_addresses.push(v4_addr.ip.to_string()),
+                    Addr::V6(v6_addr) => ipv6_addresses.push(v6_addr.ip.to_string()),
+                }
+            }
+
+            let current_ip = addresses.first().map(|addr| {
+                match addr {
+                    Addr::V4(v4_addr) => v4_addr.ip.to_string(),
+                    Addr::V6(v6_addr) => v6_addr.ip.to_string(),
+                }
+            });
+
+            interfaces.push(NetworkInterface {
+                name,
+                interface_type,
+                mac_address: "N/A".to_string(),
+                is_up: !ipv4_addresses.is_empty() || !ipv6_addresses.is_empty(),
+                ipv4_addresses,
+                ipv6_addresses,
+                current_ip,
+            });
+        }
+
+        Ok(interfaces)
     }
 
     async fn get_interface_by_name(&self, name: &str) -> Result<Option<NetworkInterface>, String> {

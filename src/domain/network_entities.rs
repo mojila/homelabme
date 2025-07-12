@@ -40,7 +40,9 @@ pub struct NetworkInterface {
     pub interface_type: InterfaceType,
     pub mac_address: String,
     pub is_up: bool,
-    pub current_ip: Option<String>,
+    pub ipv4_addresses: Vec<String>,
+    pub ipv6_addresses: Vec<String>,
+    pub current_ip: Option<String>, // Keep for backward compatibility
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +50,7 @@ pub enum InterfaceType {
     Ethernet,
     Wireless,
     Loopback,
+    Other,
 }
 
 impl WifiConfig {

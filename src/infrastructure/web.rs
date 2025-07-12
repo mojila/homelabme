@@ -107,9 +107,20 @@ async fn network_settings_handler(State(state): State<AppState>) -> Result<Html<
 
                         <!-- Network Interfaces Status -->
                         <div class="bg-white/10 backdrop-blur-md rounded-lg p-6 mb-8 border border-white/20">
-                            <h3 class="text-xl font-semibold text-white mb-4 flex items-center">
-                                <span class="mr-2">🌐</span> Network Interfaces
-                            </h3>
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-semibold text-white flex items-center">
+                                    <span class="mr-2">🌐</span> Network Interfaces
+                                </h3>
+                                <div class="flex items-center space-x-2">
+                                    <label for="interface-filter" class="text-sm text-white/90">Filter:</label>
+                                    <select id="interface-filter" onchange="filterInterfaces()" 
+                                            class="px-3 py-1 bg-white/20 border border-white/30 rounded-md text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/50">
+                                        <option value="up">UP Only</option>
+                                        <option value="all">All Interfaces</option>
+                                        <option value="down">DOWN Only</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div id="interfaces-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <!-- Interfaces will be populated by JavaScript -->
                             </div>
@@ -247,6 +258,10 @@ async fn network_settings_handler(State(state): State<AppState>) -> Result<Html<
                             }}, 3000);
                         }}
 
+                        // Store all interfaces globally for filtering
+                        let allInterfaces = [...networkInterfaces];
+                        let filteredInterfaces = [...networkInterfaces];
+
                         // Populate network interfaces
                         function populateInterfaces() {{
                             const interfacesList = document.getElementById('interfaces-list');
@@ -255,7 +270,19 @@ async fn network_settings_handler(State(state): State<AppState>) -> Result<Html<
                             interfacesList.innerHTML = '';
                             interfaceSelect.innerHTML = '';
                             
-                            networkInterfaces.forEach(iface => {{
+                            filteredInterfaces.forEach(iface => {{
+                                // Build IP addresses display
+                                let ipDisplay = '';
+                                if (iface.ipv4_addresses && iface.ipv4_addresses.length > 0) {{
+                                    ipDisplay += `<div><strong>IPv4:</strong> ${{iface.ipv4_addresses.join(', ')}}</div>`;
+                                }}
+                                if (iface.ipv6_addresses && iface.ipv6_addresses.length > 0) {{
+                                    ipDisplay += `<div><strong>IPv6:</strong> ${{iface.ipv6_addresses.join(', ')}}</div>`;
+                                }}
+                                if (!ipDisplay && iface.current_ip) {{
+                                    ipDisplay = `<div>IP: ${{iface.current_ip}}</div>`;
+                                }}
+                                
                                 // Interface status card
                                 const card = document.createElement('div');
                                 card.className = 'bg-white/10 rounded-lg p-4 border border-white/20';
@@ -269,12 +296,14 @@ async fn network_settings_handler(State(state): State<AppState>) -> Result<Html<
                                     <div class="text-sm text-white/70">
                                         <div>Type: ${{iface.interface_type}}</div>
                                         <div>MAC: ${{iface.mac_address}}</div>
-                                        ${{iface.current_ip ? `<div>IP: ${{iface.current_ip}}</div>` : ''}}
+                                        ${{ipDisplay}}
                                     </div>
                                 `;
                                 interfacesList.appendChild(card);
-                                
-                                // Interface select option
+                            }});
+                            
+                            // Always populate select with all interfaces (not filtered)
+                            allInterfaces.forEach(iface => {{
                                 if (iface.interface_type !== 'Loopback') {{
                                     const option = document.createElement('option');
                                     option.value = iface.name;
@@ -282,6 +311,26 @@ async fn network_settings_handler(State(state): State<AppState>) -> Result<Html<
                                     interfaceSelect.appendChild(option);
                                 }}
                             }});
+                        }}
+
+                        // Filter interfaces based on status
+                        function filterInterfaces() {{
+                            const filterValue = document.getElementById('interface-filter').value;
+                            
+                            switch(filterValue) {{
+                                case 'up':
+                                    filteredInterfaces = allInterfaces.filter(iface => iface.is_up);
+                                    break;
+                                case 'down':
+                                    filteredInterfaces = allInterfaces.filter(iface => !iface.is_up);
+                                    break;
+                                case 'all':
+                                default:
+                                    filteredInterfaces = [...allInterfaces];
+                                    break;
+                            }}
+                            
+                            populateInterfaces();
                         }}
 
                         // Populate WiFi configurations
@@ -507,7 +556,8 @@ async fn network_settings_handler(State(state): State<AppState>) -> Result<Html<
                             }}
                         }}
 
-                        // Initialize the page
+                        // Initialize page with default filter (UP interfaces only)
+                        filteredInterfaces = allInterfaces.filter(iface => iface.is_up);
                         populateInterfaces();
                         populateWifiConfigs();
                         populateStaticIpConfigs();
