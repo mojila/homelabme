@@ -124,26 +124,30 @@ impl NetworkConfigService for NetworkConfigServiceImpl {
     }
 
     async fn scan_wifi_networks(&self) -> Result<Vec<ScannedWifiNetwork>, String> {
-        tokio::task::spawn_blocking(|| {
-            match wifiscanner::scan() {
-                Ok(networks) => {
-                    let scanned_networks: Vec<ScannedWifiNetwork> = networks
-                        .into_iter()
-                        .map(|network| ScannedWifiNetwork {
-                            ssid: network.ssid,
-                            mac: network.mac,
-                            signal_level: network.signal_level,
-                            channel: network.channel,
-                            security: network.security,
-                        })
-                        .collect();
-                    Ok(scanned_networks)
-                }
-                Err(e) => Err(format!("WiFi scan failed: {:?}", e)),
+        // Simplified approach without panic handling for now
+        match wifiscanner::scan() {
+            Ok(networks) => {
+                let scanned_networks: Vec<ScannedWifiNetwork> = networks
+                    .into_iter()
+                    .filter_map(|network| {
+                        // Filter out networks with invalid data that might cause issues
+                        if network.ssid.is_empty() {
+                            None
+                        } else {
+                            Some(ScannedWifiNetwork {
+                                ssid: network.ssid,
+                                mac: if network.mac.is_empty() { "Unknown".to_string() } else { network.mac },
+                                signal_level: network.signal_level,
+                                channel: if network.channel.is_empty() { "Unknown".to_string() } else { network.channel },
+                                security: network.security,
+                            })
+                        }
+                    })
+                    .collect();
+                Ok(scanned_networks)
             }
-        })
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
+            Err(e) => Err(format!("WiFi scan failed: {:?}", e))
+        }
     }
 
     async fn apply_wifi_config(&self, config: &WifiConfig) -> Result<(), String> {
