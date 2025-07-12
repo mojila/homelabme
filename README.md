@@ -63,6 +63,42 @@ cargo run
 http://localhost
 ```
 
+### Linux Installation (Systemd Service)
+
+For production deployment on Linux systems with systemd:
+
+1. Install as a system service:
+```bash
+sudo make install
+```
+
+This will:
+- Build the production binary
+- Install it to `/opt/homelabme/`
+- Create a systemd service file
+- Enable auto-startup on boot
+- Configure the service to run on port 80
+
+2. Start the service:
+```bash
+sudo systemctl start homelabme
+```
+
+3. Check service status:
+```bash
+sudo systemctl status homelabme
+```
+
+4. View logs:
+```bash
+sudo journalctl -u homelabme -f
+```
+
+5. To uninstall:
+```bash
+sudo make uninstall
+```
+
 ### Using Docker
 
 ```bash
