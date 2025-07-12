@@ -8,10 +8,7 @@ use infrastructure::repositories::InMemoryGreetingRepository;
 use domain::services::GreetingServiceImpl;
 use application::use_cases::*;
 use application::network_use_cases::*;
-use application::network_dto::*;
 use domain::network_services::*;
-use domain::network_entities::*;
-use domain::network_repositories::*;
 use infrastructure::network_repositories::*;
 use infrastructure::web::{create_router, AppState};
 

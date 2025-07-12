@@ -34,19 +34,8 @@ impl GreetingRepository for InMemoryGreetingRepository {
         Ok(())
     }
 
-    async fn find_by_id(&self, id: &str) -> Result<Option<Greeting>, String> {
-        let storage = self.storage.read().await;
-        Ok(storage.get(id).cloned())
-    }
-
     async fn find_all(&self) -> Result<Vec<Greeting>, String> {
         let storage = self.storage.read().await;
         Ok(storage.values().cloned().collect())
-    }
-
-    async fn delete(&self, id: &str) -> Result<(), String> {
-        let mut storage = self.storage.write().await;
-        storage.remove(id);
-        Ok(())
     }
 }

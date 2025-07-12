@@ -23,15 +23,12 @@ pub trait NetworkConfigService: Send + Sync {
         dns_secondary: Option<String>,
     ) -> Result<StaticIpConfig, String>;
     async fn get_static_ip_configs(&self) -> Result<Vec<StaticIpConfig>, String>;
-    async fn get_static_ip_by_interface(&self, interface_name: &str) -> Result<Option<StaticIpConfig>, String>;
     async fn enable_static_ip(&self, id: &str) -> Result<(), String>;
     async fn disable_static_ip(&self, id: &str) -> Result<(), String>;
     async fn delete_static_ip_config(&self, id: &str) -> Result<(), String>;
     
     async fn get_network_interfaces(&self) -> Result<Vec<NetworkInterface>, String>;
     async fn scan_wifi_networks(&self) -> Result<Vec<ScannedWifiNetwork>, String>;
-    async fn apply_wifi_config(&self, config: &WifiConfig) -> Result<(), String>;
-    async fn apply_static_ip_config(&self, config: &StaticIpConfig) -> Result<(), String>;
 }
 
 pub struct NetworkConfigServiceImpl {
@@ -103,9 +100,7 @@ impl NetworkConfigService for NetworkConfigServiceImpl {
         self.static_ip_repository.find_all().await
     }
 
-    async fn get_static_ip_by_interface(&self, interface_name: &str) -> Result<Option<StaticIpConfig>, String> {
-        self.static_ip_repository.find_by_interface(interface_name).await
-    }
+
 
     async fn enable_static_ip(&self, id: &str) -> Result<(), String> {
         self.static_ip_repository.enable(id).await
@@ -150,17 +145,5 @@ impl NetworkConfigService for NetworkConfigServiceImpl {
         }
     }
 
-    async fn apply_wifi_config(&self, config: &WifiConfig) -> Result<(), String> {
-        // In a real implementation, this would use system commands to configure WiFi
-        // For now, we'll just simulate the operation
-        println!("Applying WiFi config: SSID={}, Security={:?}", config.ssid, config.security_type);
-        Ok(())
-    }
 
-    async fn apply_static_ip_config(&self, config: &StaticIpConfig) -> Result<(), String> {
-        // In a real implementation, this would use system commands to configure static IP
-        // For now, we'll just simulate the operation
-        println!("Applying static IP config: Interface={}, IP={}", config.interface_name, config.ip_address);
-        Ok(())
-    }
 }

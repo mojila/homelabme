@@ -35,11 +35,6 @@ impl WifiConfigRepository for InMemoryWifiConfigRepository {
         Ok(())
     }
 
-    async fn find_by_id(&self, id: &str) -> Result<Option<WifiConfig>, String> {
-        let storage = self.storage.read().await;
-        Ok(storage.get(id).cloned())
-    }
-
     async fn find_all(&self) -> Result<Vec<WifiConfig>, String> {
         let storage = self.storage.read().await;
         Ok(storage.values().cloned().collect())
@@ -101,16 +96,6 @@ impl StaticIpConfigRepository for InMemoryStaticIpConfigRepository {
         Ok(())
     }
 
-    async fn find_by_id(&self, id: &str) -> Result<Option<StaticIpConfig>, String> {
-        let storage = self.storage.read().await;
-        Ok(storage.get(id).cloned())
-    }
-
-    async fn find_by_interface(&self, interface_name: &str) -> Result<Option<StaticIpConfig>, String> {
-        let storage = self.storage.read().await;
-        Ok(storage.values().find(|config| config.interface_name == interface_name).cloned())
-    }
-
     async fn find_all(&self) -> Result<Vec<StaticIpConfig>, String> {
         let storage = self.storage.read().await;
         Ok(storage.values().cloned().collect())
@@ -163,35 +148,7 @@ impl SystemNetworkInterfaceRepository {
         }
     }
 
-    fn convert_system_interface(sys_interface: &SystemNetworkInterface) -> NetworkInterface {
-        let mut ipv4_addresses = Vec::new();
-        let mut ipv6_addresses = Vec::new();
 
-        for addr in &sys_interface.addr {
-            match addr {
-                Addr::V4(v4_addr) => ipv4_addresses.push(v4_addr.ip.to_string()),
-                Addr::V6(v6_addr) => ipv6_addresses.push(v6_addr.ip.to_string()),
-            }
-        }
-
-        // Keep current_ip for backward compatibility (first available address)
-        let current_ip = sys_interface.addr.first().map(|addr| {
-            match addr {
-                Addr::V4(v4_addr) => v4_addr.ip.to_string(),
-                Addr::V6(v6_addr) => v6_addr.ip.to_string(),
-            }
-        });
-
-        NetworkInterface {
-            name: sys_interface.name.clone(),
-            interface_type: Self::determine_interface_type(&sys_interface.name),
-            mac_address: "N/A".to_string(), // network-interface crate doesn't provide MAC address directly
-            is_up: !ipv4_addresses.is_empty() || !ipv6_addresses.is_empty(),
-            ipv4_addresses,
-            ipv6_addresses,
-            current_ip,
-        }
-    }
 }
 
 impl Default for SystemNetworkInterfaceRepository {
@@ -250,8 +207,5 @@ impl NetworkInterfaceRepository for SystemNetworkInterfaceRepository {
         Ok(interfaces)
     }
 
-    async fn get_interface_by_name(&self, name: &str) -> Result<Option<NetworkInterface>, String> {
-        let interfaces = self.get_interfaces().await?;
-        Ok(interfaces.into_iter().find(|i| i.name == name))
-    }
+
 }
