@@ -23,7 +23,8 @@ help:
 	@echo "  check      - Check code without building"
 	@echo "  fmt        - Format code"
 	@echo "  clippy     - Run clippy linter"
-	@echo "  install    - Install production binary to system"
+	@echo "  install    - Install as systemd service with auto-startup"
+	@echo "  uninstall  - Remove systemd service and binary"
 	@echo "  docker     - Build Docker image"
 	@echo "  help       - Show this help message"
 
@@ -80,8 +81,42 @@ clean:
 
 .PHONY: install
 install: build-prod
-	@echo "📦 Installing to system..."
-	$(CARGO) install --path .
+	@echo "📦 Installing $(APP_NAME) to system..."
+	@echo "Creating systemd service..."
+	@sudo mkdir -p /opt/$(APP_NAME)
+	@sudo cp $(RELEASE_DIR)/$(APP_NAME) /opt/$(APP_NAME)/
+	@sudo chmod +x /opt/$(APP_NAME)/$(APP_NAME)
+	@echo "[Unit]" | sudo tee /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "Description=HomeLab Me - Network Management Server" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "After=network.target" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "[Service]" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "Type=simple" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "User=root" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "WorkingDirectory=/opt/$(APP_NAME)" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "ExecStart=/opt/$(APP_NAME)/$(APP_NAME)" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "Environment=PORT=80" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "Restart=always" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "RestartSec=10" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "[Install]" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@echo "WantedBy=multi-user.target" | sudo tee -a /etc/systemd/system/$(APP_NAME).service > /dev/null
+	@sudo systemctl daemon-reload
+	@sudo systemctl enable $(APP_NAME).service
+	@echo "✅ $(APP_NAME) installed and enabled for auto-startup"
+	@echo "To start now: sudo systemctl start $(APP_NAME)"
+	@echo "To check status: sudo systemctl status $(APP_NAME)"
+	@echo "To view logs: sudo journalctl -u $(APP_NAME) -f"
+
+.PHONY: uninstall
+uninstall:
+	@echo "🗑️  Uninstalling $(APP_NAME)..."
+	@sudo systemctl stop $(APP_NAME).service 2>/dev/null || true
+	@sudo systemctl disable $(APP_NAME).service 2>/dev/null || true
+	@sudo rm -f /etc/systemd/system/$(APP_NAME).service
+	@sudo systemctl daemon-reload
+	@sudo rm -rf /opt/$(APP_NAME)
+	@echo "✅ $(APP_NAME) uninstalled successfully"
 
 # Docker targets
 .PHONY: docker
