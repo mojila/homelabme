@@ -67,8 +67,21 @@ async fn main() {
     let app = create_router(app_state);
     
     // Start the server
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    println!("🦀 Rust Clean Architecture Server running on http://localhost:3000");
+    let port = std::env::var("PORT")
+        .unwrap_or_else(|_| "80".to_string())
+        .parse::<u16>()
+        .unwrap_or(80);
+    
+    let bind_address = format!("0.0.0.0:{}", port);
+    let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
+    
+    let server_url = if port == 80 {
+        "http://localhost".to_string()
+    } else {
+        format!("http://localhost:{}", port)
+    };
+    
+    println!("🦀 Rust Clean Architecture Server running on {}", server_url);
     println!("📋 Available endpoints:");
     println!("   GET  /                     - Network settings page");
     println!("   GET  /api/greetings/default - Get default greeting");
